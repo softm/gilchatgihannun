@@ -28,9 +28,9 @@ export function distanceToLine(p,coords) {
   }
   return min;
 }
-export function wingCenter(center,width,height){return {x:width<430?width/2:Math.max(116,Math.min(width-116,center.x)),y:Math.max(Math.min(190,height/2),Math.min(height-210,center.y))};}
+export function wingCenter(center,width,height){return {x:width<430?width/2:Math.max(116,Math.min(width-116,center.x)),y:Math.max(Math.min(wingRadius(width,height)+50,height/2),Math.min(height-wingRadius(width,height)-110,center.y))};}
 export function wingLayout(items,center,width,height,heading=0) {
-  const radius=Math.min(160,Math.max(104,Math.min(width,height)*.25));
+  const radius=wingRadius(width,height);
   const {x:cx,y:cy}=wingCenter(center,width,height);
   // Keep geographic ordering but space hit targets evenly to avoid overlapping labels.
   const sorted=[...items].sort((a,b)=>normalize(a.bearing-heading)-normalize(b.bearing-heading));
@@ -44,3 +44,14 @@ export function maneuverText(step) {
   if(m.type==='roundabout'||m.type==='rotary')return `회전교차로 ${m.exit||''}번 출구`;
   return `${d[m.modifier]||'계속 이동'}${step.name?' · '+step.name:''}`;
 }
+
+export function restoreJourney(saved,fallback) {
+  const data=saved&&typeof saved==='object'&&!Array.isArray(saved)?saved:{};
+  const manualOrigin=data.manualOrigin===true&&validPoint(data.origin);
+  return {origin:manualOrigin?{lat:data.origin.lat,lng:data.origin.lng}:{...fallback},manualOrigin,stops:sanitizeStops(data.stops),trace:Array.isArray(data.trace)?data.trace.filter(p=>Array.isArray(p)&&p.length===2&&validPoint({lng:p[0],lat:p[1]})).slice(-3000):[]};
+}
+export function journeySnapshot(state) {
+  return {...(state.manualOrigin?{manualOrigin:true,origin:{...state.origin}}:{}),stops:state.stops,trace:state.trace.slice(-3000)};
+}
+export function wingRadius(width,height){return Math.min(160,Math.max(104,Math.min(width,height)*.25));}
+export function wingFooter(center,width,height){const {x,y}=wingCenter(center,width,height),r=wingRadius(width,height);return {x,moreY:Math.min(height-70,y+r+42),originY:Math.min(height-25,y+r+86)};}
