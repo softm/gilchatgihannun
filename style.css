@@ -12,3 +12,21 @@
 #wings.compact-wings #wing-items{position:absolute;inset:88px 10px 54px;display:grid;grid-template-columns:1fr 1fr;gap:6px;overflow:auto;padding:8px;background:#f8fcf8f5;border-radius:12px;pointer-events:auto}
 #wings.compact-wings #wing-items button{position:static!important;transform:none;width:auto;min-height:44px;box-shadow:none}
 #wings.compact-wings .wing-center{left:50%!important;top:auto!important;bottom:5px;transform:translateX(-50%)}
+
+/* The exploration handle lives above the map renderer and stays outside panels. */
+#pointer-layer{position:absolute;inset:0;z-index:4;pointer-events:none}
+#pointer-layer .pointer-handle{position:absolute;width:48px;height:48px;transform:translate(-50%,-50%);pointer-events:none}
+#pointer-layer .handle{pointer-events:auto;border-color:#fff;box-shadow:0 0 0 7px #0e926338,0 4px 17px #123e3850}
+#pointer-layer .handle-label{max-width:150px;pointer-events:none;font-size:11px;font-weight:650;padding:5px 9px;border:1px solid #c8e1d0}
+#pointer-layer .pointer-docked .handle{background:#075d49}
+#hint{display:none}
+#wing-items button.choose-location{width:142px;min-height:68px;text-align:center;border:2px solid #fff;background:#087e60;color:#fff;box-shadow:0 0 0 5px #087e6024,0 7px 22px #123e3835}
+#wing-items button.choose-location strong{font-size:15px;font-weight:800}
+#wing-items button.choose-location small{display:block;margin-top:5px;color:#e0f6e9;font-size:11px}
+#wing-items button.choose-location:hover,#wing-items button.choose-location.active{background:#075d49}
+.wing-dismiss{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);height:32px;padding:5px 9px;border-radius:8px;color:#687a70;background:#fffffff2;font-size:11px;border:1px solid #d9e3da}
+#wing-items button.set-origin{background:#fff;color:#587367;border-color:#d9e3da;font-size:11px;box-shadow:none}
+#wings.compact-wings #wing-items button.choose-location{order:-1;grid-column:1/-1;min-height:60px}
+#wings.compact-wings .wing-dismiss{top:auto!important;left:auto!important;right:12px;bottom:7px;transform:none}
+
+#wings.compact-wings #wing-items{top:var(--menu-top,88px)}

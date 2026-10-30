@@ -35,7 +35,8 @@ export function wingLayout(items,center,width,height,heading=0) {
   // Keep geographic ordering but space hit targets evenly to avoid overlapping labels.
   const sorted=[...items].sort((a,b)=>normalize(a.bearing-heading)-normalize(b.bearing-heading));
   const span=Math.min(300,Math.max(150,sorted.length*48));
-  return sorted.map((item,i)=>{const angle=radians(-90-span/2+(sorted.length===1?span/2:span*i/(sorted.length-1)));return {...item,x:Math.max(58,Math.min(width-58,cx+Math.cos(angle)*radius)),y:Math.max(28,Math.min(height-28,cy+Math.sin(angle)*radius))};});
+  const slots={1:[-90],2:[-135,-45],3:[-150,-90,-30],4:[-210,-140,-40,30],5:[-210,-150,-90,-30,30]}[sorted.length];
+  return sorted.map((item,i)=>{const angle=radians(slots?slots[i]:-90-span/2+span*i/(sorted.length-1));return {...item,x:Math.max(58,Math.min(width-58,cx+Math.cos(angle)*radius)),y:Math.max(28,Math.min(height-28,cy+Math.sin(angle)*radius))};});
 }
 export function maneuverText(step) {
   const m=step?.maneuver||{},d={'left':'좌회전','right':'우회전','slight left':'왼쪽 방향','slight right':'오른쪽 방향','sharp left':'크게 좌회전','sharp right':'크게 우회전','straight':'직진','uturn':'유턴'};
@@ -53,6 +54,11 @@ export function restoreJourney(saved,fallback) {
 export function journeySnapshot(state) {
   return {...(state.manualOrigin?{manualOrigin:true,origin:{...state.origin}}:{}),stops:state.stops,trace:state.trace.slice(-3000)};
 }
-export function wingRadius(width,height){return Math.min(160,Math.max(104,Math.min(width,height)*.25));}
+export function wingRadius(width,height){return Math.min(160,Math.max(120,Math.min(width,height)*.25));}
 export function wingFooter(center,width,height){const {x,y}=wingCenter(center,width,height),r=wingRadius(width,height);return {x,moreY:Math.min(height-70,y+r+42),originY:Math.min(height-25,y+r+86)};}
-export function coordinateChoice(point){return {lat:point.lat,lng:point.lng,id:'coordinate',name:'이 위치로 지정',kind:'지정 위치',distance:0,bearing:359};}
+export function coordinateChoice(point){return {lat:point.lat,lng:point.lng,id:'coordinate',name:'지도에서 선택한 위치',kind:'지정 위치',distance:0,bearing:359};}
+export function clampPointer(point,bounds){
+  const left=bounds.left,right=Math.max(left,bounds.right),top=bounds.top,bottom=Math.max(top,bounds.bottom);
+  const x=Number.isFinite(point.x)?point.x:(left+right)/2,y=Number.isFinite(point.y)?point.y:(top+bottom)/2;
+  return {x:Math.max(left,Math.min(right,x)),y:Math.max(top,Math.min(bottom,y)),docked:x<left||x>right||y<top||y>bottom};
+}

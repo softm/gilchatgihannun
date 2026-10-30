@@ -1,12 +1,12 @@
-import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,restoreJourney,journeySnapshot,coordinateChoice,distanceToLine,maneuverText,validPoint} from './core.js?v=20261031.1';
-import {CONFIG,nearby,routes as fetchRoutes} from './providers.js?v=20261031.1';
-import {rasterAdapter} from './raster-map.js?v=20261031.1';
+import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,wingRadius,restoreJourney,journeySnapshot,coordinateChoice,clampPointer,distanceToLine,maneuverText,validPoint} from './core.js?v=20261031.2';
+import {CONFIG,nearby,routes as fetchRoutes} from './providers.js?v=20261031.2';
+import {rasterAdapter} from './raster-map.js?v=20261031.2';
 let maps=window.maplibregl;let raster=false;
 const $=id=>document.getElementById(id), $$=s=>[...document.querySelectorAll(s)];
 const fallback={lat:37.4785,lng:126.854};
 let saved={};try{saved=JSON.parse(localStorage.getItem('gilchatgi.v1')||'{}');}catch{}
 const state={...restoreJourney(saved,fallback),gps:null,heading:0,hasHeading:false,category:'all',radius:500,routes:[],selected:0,nav:false,next:0,follow:false,mode:'map',focus:0,pitch:45,poi:[],page:0,probe:null};
-let suppressHandleClickUntil=0,modeSeq=0,wingRenderKey=null,wingFrame=null;
+let suppressHandleClickUntil=0,modeSeq=0,wingRenderKey=null,wingFrame=null,pointerFrame=null;
 let map,handle,gpsMarker,stopMarkers=[],placeMarkers=[],searchController,searchSeq=0,routeController,routeSeq=0,searchTimer,drag=null,wingPoints=[],hovered=null,stream=null,toastTimer,watch=null,rerouteAt=0,offRouteCount=0,stepIndex=0,orientationListening=false;
 const colors=['#078563','#6684c5','#bd885a'];
 function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),3500);}
@@ -35,8 +35,36 @@ function renderStops(){
 function reorder(i,d){[state.stops[i],state.stops[i+d]]=[state.stops[i+d],state.stops[i]];changed();}
 function addStop(p){if(p.id==='coordinate')p={...p,id:`point-${Date.now()}`};if(state.stops.length>=12)return toast('목적지는 최대 12곳까지 추가할 수 있습니다.');if(state.stops.some(s=>s.id===p.id))return toast('이미 동선에 있는 장소입니다.');state.stops.push(...sanitizeStops([p]));hideWings();document.body.classList.remove('panel-collapsed');$('toggle-panel').textContent='접기 ⌄';changed();toast(`${state.stops.length}번째 목적지에 추가했습니다.`);handle.setLngLat([p.lng,p.lat]);$('hint').textContent='목적지를 길게 눌러 다음 장소를 연결하세요';}
 function bindLongPress(el,p){let timer,start;el.addEventListener('pointerdown',e=>{if(e.button!==0)return;start={x:e.clientX,y:e.clientY};timer=setTimeout(()=>{timer=null;startDrag(e,el,p);},450);});el.addEventListener('pointermove',e=>{if(start&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>9)clearTimeout(timer);});for(const name of ['pointerup','pointercancel','pointerleave'])el.addEventListener(name,()=>clearTimeout(timer));el.addEventListener('contextmenu',e=>e.preventDefault());}
+function pointerBounds(){
+  const root=$('map-shell').getBoundingClientRect(),topBar=document.querySelector('.map-top').getBoundingClientRect(),bottomBar=document.querySelector('.map-bottom').getBoundingClientRect();
+  let bottom=root.height-68;
+  if(bottomBar.width&&bottomBar.height)bottom=Math.min(bottom,bottomBar.top-root.top-56);
+  const panel=$('panel').getBoundingClientRect();
+  if(innerWidth<=760&&panel.width&&panel.height)bottom=Math.min(bottom,panel.top-root.top-56);
+  const top=Math.max(64,topBar.bottom-root.top+38);
+  return {left:76,right:Math.max(76,root.width-90),top,bottom:Math.max(top,bottom)};
+}
+function renderHandle(){
+  if(!handle)return;
+  const projected=map.project([handle.geo.lng,handle.geo.lat]),pos=clampPointer(projected,pointerBounds());
+  handle.screenPoint={x:pos.x,y:pos.y};handle.docked=pos.docked;
+  handle.element.style.left=`${pos.x}px`;handle.element.style.top=`${pos.y}px`;
+  handle.element.classList.toggle('pointer-docked',pos.docked);
+  handle.label.textContent=pos.docked?'끌어서 새 위치 찾기':'끌어서 주변 찾기';
+}
+function scheduleHandle(){if(!pointerFrame)pointerFrame=requestAnimationFrame(()=>{pointerFrame=null;renderHandle();});}
+function createHandle(){
+  const el=make('div','handle-wrap pointer-handle'),button=make('button','handle','↗'),label=make('span','handle-label','끌어서 주변 찾기');
+  button.setAttribute('aria-label','드래그하여 주변 목적지 찾기');el.append(button,label);$('pointer-layer').append(el);
+  handle={element:el,button,label,geo:{...state.origin},docked:false,screenPoint:{x:0,y:0},setLngLat(p){this.geo=Array.isArray(p)?{lng:p[0],lat:p[1]}:{lng:p.lng,lat:p.lat};renderHandle();return this;},searchPoint(){if(this.docked){const p=map.unproject([this.screenPoint.x,this.screenPoint.y]);return {lat:p.lat,lng:p.lng};}return {...this.geo};}};
+  button.addEventListener('pointerdown',e=>startDrag(e,button,state.stops.at(-1)||state.origin));
+  button.onclick=()=>{if(!drag&&Date.now()>suppressHandleClickUntil)search(handle.searchPoint());};button.oncontextmenu=e=>e.preventDefault();
+  handle.setLngLat(state.origin);
+  if(typeof ResizeObserver!=='undefined'){const observer=new ResizeObserver(scheduleHandle);observer.observe($('panel'));observer.observe($('map-shell'));}
+  window.addEventListener('resize',scheduleHandle);
+}
 function pointerPoint(e){const rect=$('map').getBoundingClientRect();return {x:e.clientX-rect.left,y:e.clientY-rect.top};}
-function startDrag(e,el,anchor){if(!map)return;e.preventDefault();e.stopPropagation();hideWings();state.probe={lat:anchor.lat,lng:anchor.lng};state.follow=false;drag={pointer:e.pointerId,el,anchor,point:pointerPoint(e),active:null};el.setPointerCapture(e.pointerId);map.dragPan.disable();$('hint').hidden=true;handle.setLngLat([anchor.lng,anchor.lat]);lineSource('drag-link',[[anchor.lng,anchor.lat],[anchor.lng,anchor.lat]],'#078563',3,[2,2]);}
+function startDrag(e,el,anchor){if(!map)return;e.preventDefault();e.stopPropagation();const probe=el===handle?.button?handle.searchPoint():anchor;hideWings();state.probe={lat:probe.lat,lng:probe.lng};state.follow=false;drag={pointer:e.pointerId,el,anchor,point:pointerPoint(e),active:null};el.setPointerCapture(e.pointerId);map.dragPan.disable();$('hint').hidden=true;handle.setLngLat([probe.lng,probe.lat]);lineSource('drag-link',[[anchor.lng,anchor.lat],[probe.lng,probe.lat]],'#078563',3,[2,2]);}
 function candidateAt(e){return wingPoints.find(w=>{const b=$$('#wing-items button').find(b=>b.dataset.id===w.id);if(!b)return false;const r=b.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;})||null;}
 function moveDrag(e){if(!drag||drag.pointer!==e.pointerId)return;e.preventDefault();const p=pointerPoint(e);drag.point=p;hovered=candidateAt(e);
   $$('#wing-items button').forEach(b=>b.classList.toggle('active',b.dataset.id===hovered?.id));
@@ -58,21 +86,25 @@ function showWings(){
   const height=innerWidth<=760&&!document.body.classList.contains('focus-full')?Math.max(160,$('panel').getBoundingClientRect().top-$('map').getBoundingClientRect().top):$('map').clientHeight;
   const items=state.poi.slice(state.page*5,state.page*5+5);
   items.push(coordinateChoice(state.probe));
-  const layout=wingLayout(items,center,width,height,map.getBearing());
+  const menuTop=document.querySelector('.map-top').getBoundingClientRect().bottom-$('map').getBoundingClientRect().top+16;
+  const adjustedCenter={x:center.x,y:Math.max(center.y,menuTop+wingRadius(width,height)+28)};
+  const menuCenter=wingCenter(adjustedCenter,width,height);
+  const layout=wingLayout(items.filter(p=>p.id!=='coordinate'),adjustedCenter,width,height,map.getBearing());
+  layout.unshift({...coordinateChoice(state.probe),x:menuCenter.x,y:menuCenter.y});
   const key=JSON.stringify([state.probe.lat,state.probe.lng,state.page,...layout.map(p=>p.id)]);
   const rebuild=key!==wingRenderKey;wingRenderKey=key;
   wingPoints=layout;
-  $('wings').hidden=false;$('wings').style.height=`${height}px`;$('wings').classList.toggle('compact-wings',height<400);
-  const {x:cx,y:cy}=wingCenter(center,width,height),footer=wingFooter(center,width,height);
-  $('wing-cancel').style.left=`${cx}px`;$('wing-cancel').style.top=`${cy}px`;
+  $('wings').hidden=false;$('wings').style.height=`${height}px`;$('wings').style.setProperty('--menu-top',`${menuTop}px`);$('wings').classList.toggle('compact-wings',height<460);
+  const {x:cx,y:cy}=menuCenter,footer=wingFooter(adjustedCenter,width,height);
+  $('wing-cancel').style.left=`${Math.min(width-38,cx+108)}px`;$('wing-cancel').style.top=`${footer.originY}px`;
   if(rebuild){
     $('wing-items').replaceChildren();$('wing-lines').replaceChildren();
     for(const p of wingPoints){
-      const b=make('button','');b.dataset.id=p.id;b.append(make('strong','',p.name),make('small','',p.id==='coordinate'?'직접 선택':`직선 ${formatDistance(p.distance)}`));b.title=p.name;
+      const b=make('button',p.id==='coordinate'?'choose-location':'');b.dataset.id=p.id;b.setAttribute('aria-label',p.id==='coordinate'?'이 위치를 목적지로 추가':`${p.name} 목적지로 추가`);b.append(make('strong','',p.id==='coordinate'?'＋ 목적지 추가':p.name),make('small','',p.id==='coordinate'?'이 지도 위치로':`직선 ${formatDistance(p.distance)} · 추가`));b.title=p.id==='coordinate'?'이 위치를 목적지로 추가':`${p.name} 목적지로 추가`;
       b.onclick=e=>{e.stopPropagation();addStop(p);};$('wing-items').append(b);
       const line=document.createElementNS('http://www.w3.org/2000/svg','line');line.setAttribute('stroke','#83c5a3');line.setAttribute('stroke-width','1.5');$('wing-lines').append(line);
     }
-    const start=make('button','set-origin','여기서 출발');start.onclick=e=>{e.stopPropagation();const p={...state.probe};state.manualOrigin=true;updateOrigin(p,'선택한 위치에서 출발');hideWings();changed();handle.setLngLat([p.lng,p.lat]);toast('출발지를 변경했습니다.');};$('wing-items').append(start);
+    const start=make('button','set-origin','출발지 변경');start.onclick=e=>{e.stopPropagation();const p={...state.probe};state.manualOrigin=true;updateOrigin(p,'선택한 위치에서 출발');hideWings();changed();handle.setLngLat([p.lng,p.lat]);toast('출발지를 변경했습니다.');};$('wing-items').append(start);
     if(state.poi.length>5){const more=make('button','more-places',`다음 장소 ${state.page+1}/${Math.ceil(state.poi.length/5)} →`);more.onclick=e=>{e.stopPropagation();state.page=(state.page+1)%Math.ceil(state.poi.length/5);showWings();};$('wing-items').append(more);}
     placeMarkers.forEach(m=>m.remove());placeMarkers=items.filter(p=>p.id!=='coordinate').map(p=>{const el=make('button','place-pin','·');el.title=p.name;el.onclick=e=>{e.stopPropagation();addStop(p);};return new maps.Marker({element:el}).setLngLat([p.lng,p.lat]).addTo(map);});
   }
@@ -149,10 +181,10 @@ function drawHUD(){requestAnimationFrame(drawHUD);if(state.mode==='map'||$('hud'
 function init(){if(!window.maplibregl){$('map-loading').textContent='지도 구성 파일을 불러오지 못했습니다. 새로고침해 주세요.';return;}
   try{map=new maps.Map({container:'map',style:CONFIG.style,center:[state.origin.lng,state.origin.lat],zoom:15,pitch:45,maxPitch:65,attributionControl:true});}
   catch(e){if(!window.L){$('map-loading').textContent='지도 초기화 실패 · 브라우저를 업데이트해 주세요.';return;}maps=rasterAdapter();raster=true;state.pitch=0;map=new maps.Map({container:'map',center:[state.origin.lng,state.origin.lat],zoom:15});$('view-mode').textContent='2D';$('view-mode').disabled=true;toast('이 기기는 2D 지도로 탐색합니다.');}
-  map.on('load',()=>{$('map-loading').hidden=true;const el=make('div','handle-wrap'),button=make('button','handle','↗');button.setAttribute('aria-label','드래그하여 주변 목적지 찾기');el.append(button,make('span','handle-label','여기서 둘러보기'));button.addEventListener('pointerdown',e=>startDrag(e,button,state.stops.at(-1)||state.origin));button.onclick=()=>{if(!drag&&Date.now()>suppressHandleClickUntil)search(state.probe||state.stops.at(-1)||state.origin);};button.oncontextmenu=e=>e.preventDefault();handle=new maps.Marker({element:el}).setLngLat([state.origin.lng,state.origin.lat]).addTo(map);updateOrigin(state.origin,state.manualOrigin?'선택한 위치에서 출발':'지도 중심에서 출발');renderStops();updateTrace();if(nativeBridge()){$('overlay').hidden=false;window.GilchatgiNative.ready();}else locate({preserveOrigin:true});});
+  map.on('load',()=>{$('map-loading').hidden=true;createHandle();updateOrigin(state.origin,state.manualOrigin?'선택한 위치에서 출발':'지도 중심에서 출발');renderStops();updateTrace();if(nativeBridge()){$('overlay').hidden=false;window.GilchatgiNative.ready();}else locate({preserveOrigin:true});});
   map.on('error',e=>{if(!map.isStyleLoaded()){$('map-loading').textContent='지도 서버 연결을 확인해 주세요. 인터넷 연결 후 새로고침할 수 있습니다.';}console.warn('지도 오류',e.error?.message);});
   map.on('click',e=>{if(drag||e.originalEvent.target.closest('button'))return;state.follow=false;const p={lat:e.lngLat.lat,lng:e.lngLat.lng};state.probe=p;handle?.setLngLat(e.lngLat);search(p);});
-  map.on('dragstart',()=>{if(!drag)state.follow=false;});map.on('move',()=>{if(!$('wings').hidden&&!wingFrame)wingFrame=requestAnimationFrame(()=>{wingFrame=null;showWings();});});
+  map.on('dragstart',()=>{if(!drag)state.follow=false;});map.on('move',()=>{scheduleHandle();if(!$('wings').hidden&&!wingFrame)wingFrame=requestAnimationFrame(()=>{wingFrame=null;showWings();});});
   document.addEventListener('pointermove',moveDrag,{passive:false});document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
   $('wing-cancel').onclick=hideWings;$('locate').onclick=locate;$('recenter').onclick=locate;
   $('add').onclick=()=>{const p=state.stops.at(-1)||state.origin;state.follow=false;map.flyTo({center:[p.lng,p.lat],zoom:16});search(p);};
