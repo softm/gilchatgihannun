@@ -1,0 +1,46 @@
+export const radians = n => n * Math.PI / 180;
+export const degrees = n => n * 180 / Math.PI;
+export const normalize = n => (n % 360 + 360) % 360;
+export const deltaAngle = (a,b) => ((a-b+540)%360)-180;
+export function distance(a,b) {
+  const p=radians(b.lat-a.lat), q=radians(b.lng-a.lng);
+  const h=Math.sin(p/2)**2+Math.cos(radians(a.lat))*Math.cos(radians(b.lat))*Math.sin(q/2)**2;
+  return 6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(Math.max(0,1-h)));
+}
+export function bearing(a,b) {
+  const p=radians(a.lat),q=radians(b.lat),d=radians(b.lng-a.lng);
+  return normalize(degrees(Math.atan2(Math.sin(d)*Math.cos(q),Math.cos(p)*Math.sin(q)-Math.sin(p)*Math.cos(q)*Math.cos(d))));
+}
+export function validPoint(p) {return p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat)<=85 && Math.abs(p.lng)<=180;}
+export function formatDistance(m) {return m>=1000?`${(m/1000).toFixed(1)}km`:`${Math.round(m)}m`;}
+export function formatDuration(s) {const m=Math.max(1,Math.round(s/60));return m>=60?`${Math.floor(m/60)}시간 ${m%60}분`:`${m}분`;}
+export function sanitizeStops(stops) {
+  if(!Array.isArray(stops)) return [];
+  return stops.filter(validPoint).slice(0,12).map((p,i)=>({id:String(p.id||`p-${i}`),name:String(p.name||'선택한 위치').slice(0,120),lat:p.lat,lng:p.lng,kind:String(p.kind||'장소').slice(0,40)}));
+}
+export function distanceToLine(p,coords) {
+  let min=Infinity;
+  const k=111320, cos=Math.cos(radians(p.lat));
+  for(let i=1;i<coords.length;i++){
+    const a={x:(coords[i-1][0]-p.lng)*k*cos,y:(coords[i-1][1]-p.lat)*k},b={x:(coords[i][0]-p.lng)*k*cos,y:(coords[i][1]-p.lat)*k};
+    const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,-(a.x*dx+a.y*dy)/(dx*dx+dy*dy||1)));
+    min=Math.min(min,Math.hypot(a.x+t*dx,a.y+t*dy));
+  }
+  return min;
+}
+export function wingCenter(center,width,height){return {x:width<430?width/2:Math.max(116,Math.min(width-116,center.x)),y:Math.max(Math.min(190,height/2),Math.min(height-210,center.y))};}
+export function wingLayout(items,center,width,height,heading=0) {
+  const radius=Math.min(160,Math.max(104,Math.min(width,height)*.25));
+  const {x:cx,y:cy}=wingCenter(center,width,height);
+  // Keep geographic ordering but space hit targets evenly to avoid overlapping labels.
+  const sorted=[...items].sort((a,b)=>normalize(a.bearing-heading)-normalize(b.bearing-heading));
+  const span=Math.min(300,Math.max(150,sorted.length*48));
+  return sorted.map((item,i)=>{const angle=radians(-90-span/2+(sorted.length===1?span/2:span*i/(sorted.length-1)));return {...item,x:Math.max(58,Math.min(width-58,cx+Math.cos(angle)*radius)),y:Math.max(28,Math.min(height-28,cy+Math.sin(angle)*radius))};});
+}
+export function maneuverText(step) {
+  const m=step?.maneuver||{},d={'left':'좌회전','right':'우회전','slight left':'왼쪽 방향','slight right':'오른쪽 방향','sharp left':'크게 좌회전','sharp right':'크게 우회전','straight':'직진','uturn':'유턴'};
+  if(m.type==='arrive')return '목적지 도착';
+  if(m.type==='depart')return `${step.name||'도로'} 방향으로 출발`;
+  if(m.type==='roundabout'||m.type==='rotary')return `회전교차로 ${m.exit||''}번 출구`;
+  return `${d[m.modifier]||'계속 이동'}${step.name?' · '+step.name:''}`;
+}
