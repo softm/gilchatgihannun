@@ -30,3 +30,7 @@
 #wings.compact-wings .wing-dismiss{top:auto!important;left:auto!important;right:12px;bottom:7px;transform:none}
 
 #wings.compact-wings #wing-items{top:var(--menu-top,88px)}
+
+.wing-dismiss{height:28px;font-size:10px;padding:4px 8px;color:#7b8981;border-color:#e5ebe5}
+#wing-items button.set-origin{width:90px}
+#wing-items button.more-places{width:124px}

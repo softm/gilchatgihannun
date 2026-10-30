@@ -55,7 +55,7 @@ export function journeySnapshot(state) {
   return {...(state.manualOrigin?{manualOrigin:true,origin:{...state.origin}}:{}),stops:state.stops,trace:state.trace.slice(-3000)};
 }
 export function wingRadius(width,height){return Math.min(160,Math.max(120,Math.min(width,height)*.25));}
-export function wingFooter(center,width,height){const {x,y}=wingCenter(center,width,height),r=wingRadius(width,height);return {x,moreY:Math.min(height-70,y+r+42),originY:Math.min(height-25,y+r+86)};}
+export function wingFooter(center,width,height){const {x,y}=wingCenter(center,width,height);return {x,moreY:y+108,originY:y+64,closeY:y-58};}
 export function coordinateChoice(point){return {lat:point.lat,lng:point.lng,id:'coordinate',name:'지도에서 선택한 위치',kind:'지정 위치',distance:0,bearing:359};}
 export function clampPointer(point,bounds){
   const left=bounds.left,right=Math.max(left,bounds.right),top=bounds.top,bottom=Math.max(top,bounds.bottom);

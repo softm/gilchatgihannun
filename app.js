@@ -1,6 +1,6 @@
-import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,wingRadius,restoreJourney,journeySnapshot,coordinateChoice,clampPointer,distanceToLine,maneuverText,validPoint} from './core.js?v=20261031.3';
-import {CONFIG,nearby,routes as fetchRoutes} from './providers.js?v=20261031.3';
-import {rasterAdapter} from './raster-map.js?v=20261031.3';
+import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,wingRadius,restoreJourney,journeySnapshot,coordinateChoice,clampPointer,distanceToLine,maneuverText,validPoint} from './core.js?v=20261031.4';
+import {CONFIG,nearby,routes as fetchRoutes} from './providers.js?v=20261031.4';
+import {rasterAdapter} from './raster-map.js?v=20261031.4';
 let maps=window.maplibregl;let raster=false;
 const $=id=>document.getElementById(id), $$=s=>[...document.querySelectorAll(s)];
 const fallback={lat:37.4785,lng:126.854};
@@ -98,7 +98,7 @@ function showWings(){
   wingPoints=layout;
   $('wings').hidden=false;$('wings').style.height=`${height}px`;$('wings').style.setProperty('--menu-top',`${menuTop}px`);$('wings').classList.toggle('compact-wings',height<460);
   const {x:cx,y:cy}=menuCenter,footer=wingFooter(adjustedCenter,width,height);
-  $('wing-cancel').style.left=`${Math.min(width-38,cx+108)}px`;$('wing-cancel').style.top=`${footer.originY}px`;
+  $('wing-cancel').style.left=`${cx}px`;$('wing-cancel').style.top=`${footer.closeY}px`;
   if(rebuild){
     $('wing-items').replaceChildren();$('wing-lines').replaceChildren();
     for(const p of wingPoints){

@@ -1,4 +1,4 @@
-import {distance,bearing,validPoint} from './core.js?v=20261031.3';
+import {distance,bearing,validPoint} from './core.js?v=20261031.4';
 export const CONFIG={style:'https://tiles.openfreemap.org/styles/liberty',overpass:'https://overpass-api.de/api/interpreter',overpassFallback:'https://overpass.private.coffee/api/interpreter',routing:'https://router.project-osrm.org'};
 const selectors={all:'["name"][~"^(amenity|tourism|leisure|shop)$"~"."]',food:'["amenity"~"^(restaurant|fast_food|food_court)$"]["name"]',cafe:'["amenity"="cafe"]["name"]',fuel:'["amenity"="fuel"]',parking:'["amenity"="parking"]',shop:'["shop"="convenience"]',park:'["leisure"="park"]'};
 const kinds={restaurant:'음식점',fast_food:'간편식',food_court:'푸드코트',cafe:'카페',fuel:'주유소',parking:'주차장',convenience:'편의점',park:'공원',pharmacy:'약국',clinic:'의원',hospital:'병원',dentist:'치과',bank:'은행',atm:'현금인출기',school:'학교',toilets:'화장실',hotel:'호텔',supermarket:'마트',bakery:'빵집',hairdresser:'미용실'};
