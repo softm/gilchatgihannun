@@ -1,4 +1,4 @@
-import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,restoreJourney,journeySnapshot,distanceToLine,maneuverText,validPoint} from './core.js';
+import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,restoreJourney,journeySnapshot,coordinateChoice,distanceToLine,maneuverText,validPoint} from './core.js';
 import {CONFIG,nearby,routes as fetchRoutes} from './providers.js';
 import {rasterAdapter} from './raster-map.js';
 let maps=window.maplibregl;let raster=false;
@@ -48,7 +48,7 @@ function moveDrag(e){if(!drag||drag.pointer!==e.pointerId)return;e.preventDefaul
 }
 function endDrag(e){if(!drag||drag.pointer!==e.pointerId)return;const selected=candidateAt(e);const cancelled=e.type==='pointercancel';try{drag.el.releasePointerCapture(e.pointerId);}catch{}const anchor=drag.anchor;drag=null;map.dragPan.enable();clearTimeout(searchTimer);if(!state.probe)state.probe=anchor;suppressHandleClickUntil=Date.now()+300;if(cancelled){hideWings();return;}if(selected)addStop(selected);else if(state.probe)search(state.probe);}
 function hideWings(){searchSeq++;searchController?.abort();clearTimeout(searchTimer);$('wings').hidden=true;state.probe=null;state.poi=[];wingRenderKey=null;wingPoints=[];hovered=null;placeMarkers.forEach(m=>m.remove());placeMarkers=[];$('search-status').textContent='';if(map?.getSource('drag-link'))map.getSource('drag-link').setData(feature([]));}
-async function search(point){if(!validPoint(point))return;if(innerWidth<=760){document.body.classList.add('panel-collapsed');$('toggle-panel').textContent='펼치기 ⌃';}state.follow=false;state.probe=point;state.page=0;const seq=++searchSeq;searchController?.abort();searchController=new AbortController();state.poi=[];showWings();$('search-status').textContent='주변 장소를 찾는 중…';
+async function search(point){if(!validPoint(point))return;if(innerWidth<=760){document.body.classList.add('panel-collapsed');$('toggle-panel').textContent='펼치기 ⌃';}point={lat:point.lat,lng:point.lng};state.follow=false;state.probe=point;state.page=0;const seq=++searchSeq;searchController?.abort();searchController=new AbortController();state.poi=[];showWings();$('search-status').textContent='주변 장소를 찾는 중…';
   try{const items=await nearby(point,state.category,state.radius,searchController.signal);if(seq!==searchSeq)return;state.poi=items;showWings();$('search-status').textContent=`OpenStreetMap 등록 장소 ${items.length}곳 · 기준점 반경 ${formatDistance(state.radius)}${items.length?'':' · 다른 지점이나 반경을 선택해 보세요'}`;}
   catch(e){if(seq!==searchSeq)return;$('search-status').textContent='장소 조회 실패 · 지도를 다시 누르면 재시도합니다.';toast('장소 서버에 연결하지 못했습니다. 위치를 직접 목적지로 지정할 수 있습니다.');state.poi=[];showWings();}
 }
@@ -57,7 +57,7 @@ function showWings(){
   const center=map.project([state.probe.lng,state.probe.lat]),width=$('map').clientWidth;
   const height=innerWidth<=760&&!document.body.classList.contains('focus-full')?Math.max(160,$('panel').getBoundingClientRect().top-$('map').getBoundingClientRect().top):$('map').clientHeight;
   const items=state.poi.slice(state.page*5,state.page*5+5);
-  items.push({id:'coordinate',name:'이 위치로 지정',kind:'지정 위치',...state.probe,distance:0,bearing:359});
+  items.push(coordinateChoice(state.probe));
   const layout=wingLayout(items,center,width,height,map.getBearing());
   const key=JSON.stringify([state.probe.lat,state.probe.lng,state.page,...layout.map(p=>p.id)]);
   const rebuild=key!==wingRenderKey;wingRenderKey=key;

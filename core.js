@@ -55,3 +55,4 @@ export function journeySnapshot(state) {
 }
 export function wingRadius(width,height){return Math.min(160,Math.max(104,Math.min(width,height)*.25));}
 export function wingFooter(center,width,height){const {x,y}=wingCenter(center,width,height),r=wingRadius(width,height);return {x,moreY:Math.min(height-70,y+r+42),originY:Math.min(height-25,y+r+86)};}
+export function coordinateChoice(point){return {lat:point.lat,lng:point.lng,id:'coordinate',name:'이 위치로 지정',kind:'지정 위치',distance:0,bearing:359};}
