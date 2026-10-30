@@ -1,6 +1,6 @@
-import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,restoreJourney,journeySnapshot,coordinateChoice,distanceToLine,maneuverText,validPoint} from './core.js';
-import {CONFIG,nearby,routes as fetchRoutes} from './providers.js';
-import {rasterAdapter} from './raster-map.js';
+import {distance,bearing,normalize,deltaAngle,formatDistance,formatDuration,sanitizeStops,wingLayout,wingCenter,wingFooter,restoreJourney,journeySnapshot,coordinateChoice,distanceToLine,maneuverText,validPoint} from './core.js?v=20261031.1';
+import {CONFIG,nearby,routes as fetchRoutes} from './providers.js?v=20261031.1';
+import {rasterAdapter} from './raster-map.js?v=20261031.1';
 let maps=window.maplibregl;let raster=false;
 const $=id=>document.getElementById(id), $$=s=>[...document.querySelectorAll(s)];
 const fallback={lat:37.4785,lng:126.854};
