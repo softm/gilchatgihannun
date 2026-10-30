@@ -37,15 +37,16 @@ function addStop(p){if(p.id==='coordinate')p={...p,id:`point-${Date.now()}`};if(
 function bindLongPress(el,p){let timer,start;el.addEventListener('pointerdown',e=>{if(e.button!==0)return;start={x:e.clientX,y:e.clientY};timer=setTimeout(()=>{timer=null;startDrag(e,el,p);},450);});el.addEventListener('pointermove',e=>{if(start&&Math.hypot(e.clientX-start.x,e.clientY-start.y)>9)clearTimeout(timer);});for(const name of ['pointerup','pointercancel','pointerleave'])el.addEventListener(name,()=>clearTimeout(timer));el.addEventListener('contextmenu',e=>e.preventDefault());}
 function pointerPoint(e){const rect=$('map').getBoundingClientRect();return {x:e.clientX-rect.left,y:e.clientY-rect.top};}
 function startDrag(e,el,anchor){if(!map)return;e.preventDefault();e.stopPropagation();hideWings();state.probe={lat:anchor.lat,lng:anchor.lng};state.follow=false;drag={pointer:e.pointerId,el,anchor,point:pointerPoint(e),active:null};el.setPointerCapture(e.pointerId);map.dragPan.disable();$('hint').hidden=true;handle.setLngLat([anchor.lng,anchor.lat]);lineSource('drag-link',[[anchor.lng,anchor.lat],[anchor.lng,anchor.lat]],'#078563',3,[2,2]);}
-function moveDrag(e){if(!drag||drag.pointer!==e.pointerId)return;e.preventDefault();const p=pointerPoint(e);drag.point=p;hovered=wingPoints.find(w=>{const b=$$('#wing-items button').find(b=>b.dataset.id===w.id);if(!b)return false;const r=b.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;})||null;
+function candidateAt(e){return wingPoints.find(w=>{const b=$$('#wing-items button').find(b=>b.dataset.id===w.id);if(!b)return false;const r=b.getBoundingClientRect();return e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom;})||null;}
+function moveDrag(e){if(!drag||drag.pointer!==e.pointerId)return;e.preventDefault();const p=pointerPoint(e);drag.point=p;hovered=candidateAt(e);
   $$('#wing-items button').forEach(b=>b.classList.toggle('active',b.dataset.id===hovered?.id));
-  if(hovered)return;
+  if(hovered){clearTimeout(searchTimer);return;}
   const ll=map.unproject([p.x,p.y]);const point={lng:ll.lng,lat:ll.lat};handle.setLngLat(ll);state.probe=point;
   lineSource('drag-link',[[drag.anchor.lng,drag.anchor.lat],[point.lng,point.lat]],'#078563',3,[2,2]);
   if(p.x<28||p.x>$('map').clientWidth-28||p.y<90||p.y>$('map').clientHeight-50)map.panBy([p.x<28?-3:p.x>$('map').clientWidth-28?3:0,p.y<90?-3:p.y>$('map').clientHeight-50?3:0],{duration:0});
   clearTimeout(searchTimer);searchTimer=setTimeout(()=>search(point),550);
 }
-function endDrag(e){if(!drag||drag.pointer!==e.pointerId)return;const selected=hovered;const cancelled=e.type==='pointercancel';try{drag.el.releasePointerCapture(e.pointerId);}catch{}const anchor=drag.anchor;drag=null;map.dragPan.enable();clearTimeout(searchTimer);if(!state.probe)state.probe=anchor;suppressHandleClickUntil=Date.now()+300;if(cancelled){hideWings();return;}if(selected)addStop(selected);else if(state.probe)search(state.probe);}
+function endDrag(e){if(!drag||drag.pointer!==e.pointerId)return;const selected=candidateAt(e);const cancelled=e.type==='pointercancel';try{drag.el.releasePointerCapture(e.pointerId);}catch{}const anchor=drag.anchor;drag=null;map.dragPan.enable();clearTimeout(searchTimer);if(!state.probe)state.probe=anchor;suppressHandleClickUntil=Date.now()+300;if(cancelled){hideWings();return;}if(selected)addStop(selected);else if(state.probe)search(state.probe);}
 function hideWings(){searchSeq++;searchController?.abort();clearTimeout(searchTimer);$('wings').hidden=true;state.probe=null;state.poi=[];wingRenderKey=null;wingPoints=[];hovered=null;placeMarkers.forEach(m=>m.remove());placeMarkers=[];$('search-status').textContent='';if(map?.getSource('drag-link'))map.getSource('drag-link').setData(feature([]));}
 async function search(point){if(!validPoint(point))return;if(innerWidth<=760){document.body.classList.add('panel-collapsed');$('toggle-panel').textContent='펼치기 ⌃';}state.follow=false;state.probe=point;state.page=0;const seq=++searchSeq;searchController?.abort();searchController=new AbortController();state.poi=[];showWings();$('search-status').textContent='주변 장소를 찾는 중…';
   try{const items=await nearby(point,state.category,state.radius,searchController.signal);if(seq!==searchSeq)return;state.poi=items;showWings();$('search-status').textContent=`OpenStreetMap 등록 장소 ${items.length}곳 · 기준점 반경 ${formatDistance(state.radius)}${items.length?'':' · 다른 지점이나 반경을 선택해 보세요'}`;}
@@ -57,9 +58,10 @@ function showWings(){
   const height=innerWidth<=760&&!document.body.classList.contains('focus-full')?Math.max(160,$('panel').getBoundingClientRect().top-$('map').getBoundingClientRect().top):$('map').clientHeight;
   const items=state.poi.slice(state.page*5,state.page*5+5);
   items.push({id:'coordinate',name:'이 위치로 지정',kind:'지정 위치',...state.probe,distance:0,bearing:359});
-  const key=JSON.stringify([state.probe.lat,state.probe.lng,state.page,...items.map(p=>p.id)]);
+  const layout=wingLayout(items,center,width,height,map.getBearing());
+  const key=JSON.stringify([state.probe.lat,state.probe.lng,state.page,...layout.map(p=>p.id)]);
   const rebuild=key!==wingRenderKey;wingRenderKey=key;
-  wingPoints=wingLayout(items,center,width,height,map.getBearing());
+  wingPoints=layout;
   $('wings').hidden=false;$('wings').style.height=`${height}px`;$('wings').classList.toggle('compact-wings',height<400);
   const {x:cx,y:cy}=wingCenter(center,width,height),footer=wingFooter(center,width,height);
   $('wing-cancel').style.left=`${cx}px`;$('wing-cancel').style.top=`${cy}px`;
